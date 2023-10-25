@@ -163,6 +163,14 @@ func (p Project) updateActions(plan Project) platform.ProjectUpdate {
 					CartsConfiguration: val,
 				},
 			)
+
+			//ProjectChangeCartsConfigurationAction does not actually update CountryTaxRateFallbackEnabled,
+			// so added extra mutation in same flow to keep consistent with previous code
+			result.Actions = append(result.Actions,
+				platform.ProjectChangeCountryTaxRateFallbackEnabledAction{
+					CountryTaxRateFallbackEnabled: *val.CountryTaxRateFallbackEnabled,
+				},
+			)
 		}
 	}
 
@@ -230,7 +238,7 @@ func (p Project) updateActions(plan Project) platform.ProjectUpdate {
 	}
 
 	// changeOrderSearchStatus
-	if !p.EnableSearchIndexOrders.Equal(plan.EnableSearchIndexOrders) {
+	if !(p.EnableSearchIndexOrders.ValueBool() == plan.EnableSearchIndexOrders.ValueBool()) {
 		status := platform.OrderSearchStatusDeactivated
 		if plan.EnableSearchIndexOrders.ValueBool() {
 			status = platform.OrderSearchStatusActivated
@@ -243,7 +251,7 @@ func (p Project) updateActions(plan Project) platform.ProjectUpdate {
 	}
 
 	// changeProductSearchIndexingEnabled
-	if !p.EnableSearchIndexProducts.Equal(plan.EnableSearchIndexProducts) {
+	if !(p.EnableSearchIndexProducts.ValueBool() == plan.EnableSearchIndexProducts.ValueBool()) {
 		result.Actions = append(result.Actions,
 			platform.ProjectChangeProductSearchIndexingEnabledAction{
 				Enabled: plan.EnableSearchIndexProducts.ValueBool(),

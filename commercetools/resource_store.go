@@ -48,6 +48,13 @@ func resourceStore() *schema.Resource {
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
+			"countries": {
+				Description: "A two-digit country code as per " +
+					"[ISO 3166-1 alpha-2](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)",
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
 			"distribution_channels": {
 				Description: "Set of ResourceIdentifier to a Channel with ProductDistribution",
 				Type:        schema.TypeList,
@@ -60,6 +67,25 @@ func resourceStore() *schema.Resource {
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
+			"product_selection": {
+				Description: "Controls availability of Products for this Store via Product Selections",
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"active": {
+							Description: "If true, all Products assigned to this Product Selection are part of the Store's assortment",
+							Type:        schema.TypeBool,
+							Required:    true,
+						},
+						"product_selection_id": {
+							Description: "Resource Identifier of a ProductSelection",
+							Type:        schema.TypeString,
+							Required:    true,
+						},
+					},
+				},
+			},
 			"custom": CustomFieldSchema(),
 		},
 	}
@@ -71,6 +97,7 @@ func resourceStoreCreate(ctx context.Context, d *schema.ResourceData, m any) dia
 	name := expandLocalizedString(d.Get("name"))
 	dcIdentifiers := expandStoreChannels(d.Get("distribution_channels"))
 	scIdentifiers := expandStoreChannels(d.Get("supply_channels"))
+	psIdentifiers := expandProductSelections(d.Get("product_selection").(*schema.Set))
 
 	custom, err := CreateCustomFieldDraft(ctx, client, d)
 	if err != nil {
@@ -84,8 +111,10 @@ func resourceStoreCreate(ctx context.Context, d *schema.ResourceData, m any) dia
 		Key:                  d.Get("key").(string),
 		Name:                 &name,
 		Languages:            expandStringArray(d.Get("languages").([]any)),
+		Countries:            expandStoreCountries(d.Get("countries").(*schema.Set)),
 		DistributionChannels: dcIdentifiers,
 		SupplyChannels:       scIdentifiers,
+		ProductSelections:    psIdentifiers,
 		Custom:               custom,
 	}
 
@@ -101,7 +130,7 @@ func resourceStoreCreate(ctx context.Context, d *schema.ResourceData, m any) dia
 	}
 
 	d.SetId(store.ID)
-	d.Set("version", store.Version)
+	_ = d.Set("version", store.Version)
 	return resourceStoreRead(ctx, d, m)
 }
 
@@ -111,7 +140,7 @@ func resourceStoreRead(ctx context.Context, d *schema.ResourceData, m any) diag.
 	store, err := client.Stores().
 		WithId(d.Id()).
 		Get().
-		Expand([]string{"distributionChannels[*]", "supplyChannels[*]"}).
+		Expand([]string{"distributionChannels[*]", "supplyChannels[*]", "productSelections[*].productSelection"}).
 		Execute(ctx)
 
 	if err != nil {
@@ -123,23 +152,29 @@ func resourceStoreRead(ctx context.Context, d *schema.ResourceData, m any) diag.
 	}
 
 	d.SetId(store.ID)
-	d.Set("key", store.Key)
+	_ = d.Set("key", store.Key)
 	if store.Name != nil {
-		d.Set("name", *store.Name)
+		_ = d.Set("name", *store.Name)
 	} else {
-		d.Set("name", nil)
+		_ = d.Set("name", nil)
 	}
-	d.Set("version", store.Version)
+	_ = d.Set("version", store.Version)
 	if store.Languages != nil {
-		d.Set("languages", store.Languages)
+		_ = d.Set("languages", store.Languages)
 	}
-
+	if store.Countries != nil {
+		countries, err := flattenCountries(store.Countries)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		_ = d.Set("countries", countries)
+	}
 	if store.DistributionChannels != nil {
 		channelKeys, err := flattenStoreChannels(store.DistributionChannels)
 		if err != nil {
 			return diag.FromErr(err)
 		}
-		d.Set("distribution_channels", channelKeys)
+		_ = d.Set("distribution_channels", channelKeys)
 	}
 
 	if store.SupplyChannels != nil {
@@ -147,9 +182,18 @@ func resourceStoreRead(ctx context.Context, d *schema.ResourceData, m any) diag.
 		if err != nil {
 			return diag.FromErr(err)
 		}
-		d.Set("supply_channels", channelKeys)
+		_ = d.Set("supply_channels", channelKeys)
 	}
-	d.Set("custom", flattenCustomFields(store.Custom))
+
+	if store.ProductSelections != nil {
+		selections, err := flattenProductSelections(store.ProductSelections)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		_ = d.Set("product_selection", selections)
+	}
+
+	_ = d.Set("custom", flattenCustomFields(store.Custom))
 	return nil
 }
 
@@ -176,6 +220,14 @@ func resourceStoreUpdate(ctx context.Context, d *schema.ResourceData, m any) dia
 			&platform.StoreSetLanguagesAction{Languages: languages})
 	}
 
+	if d.HasChange("countries") {
+		countries := expandStoreCountries(d.Get("countries").(*schema.Set))
+
+		input.Actions = append(
+			input.Actions,
+			&platform.StoreSetCountriesAction{Countries: countries})
+	}
+
 	if d.HasChange("distribution_channels") {
 		dcIdentifiers := expandStoreChannels(d.Get("distribution_channels"))
 
@@ -197,6 +249,31 @@ func resourceStoreUpdate(ctx context.Context, d *schema.ResourceData, m any) dia
 				SupplyChannels: scIdentifiers,
 			},
 		)
+	}
+
+	if d.HasChange("product_selection") {
+		old, new := d.GetChange("product_selection")
+
+		oldProductSelections := expandProductSelections(old.(*schema.Set))
+		newProductSelections := expandProductSelections(new.(*schema.Set))
+
+		for i, productSelection := range oldProductSelections {
+			if !productSelectionInSlice(productSelection, newProductSelections) {
+				input.Actions = append(
+					input.Actions,
+					&platform.StoreRemoveProductSelectionAction{ProductSelection: oldProductSelections[i].ProductSelection})
+			}
+		}
+		for i, location := range newProductSelections {
+			if !productSelectionInSlice(location, oldProductSelections) {
+				input.Actions = append(
+					input.Actions,
+					&platform.StoreAddProductSelectionAction{
+						ProductSelection: newProductSelections[i].ProductSelection,
+						Active:           newProductSelections[i].Active,
+					})
+			}
+		}
 	}
 
 	if d.HasChange("custom") {
@@ -254,6 +331,49 @@ func expandStoreChannels(channelData any) []platform.ChannelResourceIdentifier {
 	return convertChannelKeysToIdentifiers(channelKeys)
 }
 
+func expandProductSelections(input *schema.Set) []platform.ProductSelectionSettingDraft {
+	inputSlice := input.List()
+	result := make([]platform.ProductSelectionSettingDraft, len(inputSlice))
+
+	for i := range inputSlice {
+		raw := inputSlice[i].(map[string]any)
+		active, ok := raw["active"].(bool)
+		if !ok {
+			active = false
+		}
+
+		var productSelectionRef *string
+		if productSelection, ok := raw["product_selection_id"].(string); ok && productSelection != "" {
+			productSelectionRef = &productSelection
+		}
+
+		result[i] = platform.ProductSelectionSettingDraft{
+			Active: utils.BoolRef(active),
+			ProductSelection: platform.ProductSelectionResourceIdentifier{
+				ID: productSelectionRef,
+			},
+		}
+	}
+
+	return result
+}
+
+func convertCountryCodesToStoreCountries(countryCodes []string) []platform.StoreCountry {
+	storeCountries := make([]platform.StoreCountry, 0)
+	for i := 0; i < len(countryCodes); i++ {
+		storeCountry := platform.StoreCountry{
+			Code: countryCodes[i],
+		}
+		storeCountries = append(storeCountries, storeCountry)
+	}
+	return storeCountries
+}
+
+func expandStoreCountries(countryData any) []platform.StoreCountry {
+	countryCodes := expandStringArray(countryData.(*schema.Set).List())
+	return convertCountryCodesToStoreCountries(countryCodes)
+}
+
 func flattenStoreChannels(channels []platform.ChannelReference) ([]string, error) {
 	channelKeys := make([]string, 0)
 	for i := 0; i < len(channels); i++ {
@@ -263,4 +383,34 @@ func flattenStoreChannels(channels []platform.ChannelReference) ([]string, error
 		channelKeys = append(channelKeys, channels[i].Obj.Key)
 	}
 	return channelKeys, nil
+}
+
+func flattenProductSelections(selections []platform.ProductSelectionSetting) ([]map[string]any, error) {
+	result := make([]map[string]any, len(selections))
+
+	for i := range selections {
+		result[i] = map[string]any{
+			"active":               selections[i].Active,
+			"product_selection_id": selections[i].ProductSelection.ID,
+		}
+	}
+
+	return result, nil
+}
+
+func flattenCountries(countries []platform.StoreCountry) ([]string, error) {
+	countryCodes := make([]string, 0)
+	for _, country := range countries {
+		countryCodes = append(countryCodes, country.Code)
+	}
+	return countryCodes, nil
+}
+
+func productSelectionInSlice(needle platform.ProductSelectionSettingDraft, haystack []platform.ProductSelectionSettingDraft) bool {
+	for _, item := range haystack {
+		if item == needle {
+			return true
+		}
+	}
+	return false
 }
