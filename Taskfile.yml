@@ -4,12 +4,12 @@ tasks:
   build-local:
     cmds:
       - go build -o terraform-provider-{{ .NAME }}_{{ .VERSION }}
-      - mkdir -p ~/.terraform.d/plugins/registry.terraform.io/labd/{{ .NAME }}/{{ .VERSION }}/{{ .PLATFORM }}/
-      - mv terraform-provider-{{ .NAME }}_{{ .VERSION }} ~/.terraform.d/plugins/registry.terraform.io/labd/{{ .NAME }}/{{ .VERSION }}/{{ .PLATFORM }}/terraform-provider-{{ .NAME }}_v{{ .VERSION }}
-      - cmd: codesign --deep --force -s - ~/.terraform.d/plugins/registry.terraform.io/labd/{{ .NAME }}/{{ .VERSION }}/{{ .PLATFORM }}/terraform-provider-{{ .NAME }}_v{{ .VERSION }}
+      - mkdir -p ~/.terraform.d/plugins/terraform.vaimo.com/vaimo/{{ .NAME }}/{{ .VERSION }}/{{ .PLATFORM }}/
+      - mv terraform-provider-{{ .NAME }}_{{ .VERSION }} ~/.terraform.d/plugins/terraform.vaimo.com/vaimo/{{ .NAME }}/{{ .VERSION }}/{{ .PLATFORM }}/terraform-provider-{{ .NAME }}_v{{ .VERSION }}
+      - cmd: codesign --deep --force -s - ~/.terraform.d/plugins/terraform.vaimo.com/vaimo/{{ .NAME }}/{{ .VERSION }}/{{ .PLATFORM }}/terraform-provider-{{ .NAME }}_v{{ .VERSION }}
         platforms: [darwin]
     vars:
-      VERSION: 99.0.0
+      VERSION: 1.13.0
       NAME: commercetools
       PLATFORM:
         sh: echo "$(go env GOOS)_$(go env GOARCH)"

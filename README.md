@@ -53,25 +53,27 @@ for more information about installing third-party providers.
 
 ## Building the provider
 
-Clone repository to: `$GOPATH/src/github.com/labd/terraform-provider-commercetools`
+Clone repository to: `$GOPATH/src/github.com/vaimo/terraform-provider-commercetools`
 
 ```sh
-$ mkdir -p $GOPATH/src/github.com/labd; cd $GOPATH/src/github.com/labd
-$ git clone git@github.com:labd/terraform-provider-commercetools
+$ mkdir -p $GOPATH/src/github.com/vaimo; cd $GOPATH/src/github.com/vaimo
+$ git clone git@github.com:vaimo/terraform-provider-commercetools.git
 ```
 
 Enter the provider directory and build the provider
 
 ```sh
-$ cd $GOPATH/src/github.com/labd/terraform-provider-commercetools
+$ cd $GOPATH/src/github.com/vaimo/terraform-provider-commercetools
 $ task build-local
+$ GOOS=linux GOARCH=amd64 task build-local
+$ GOARCH=amd64 task build-local
 ```
 
-A build is created `terraform-provider-commercetools_99.0.0` in the root directory and added to plugin folder available
+A build is created `terraform-provider-commercetools_13.1.0` in the root directory and added to plugin folder available
 locally:
 
 ```sh
-~/.terraform.d/plugins/local/labd/commercetools/99.0.0/${OS_ARCH}/terraform-provider-commercetools_v99.0.0
+~/.terraform.d/plugins/terraform.vaimo.com/vaimo/commercetools/1.13.0${OS_ARCH}/terraform-provider-commercetools_v13.1.0
 ```
 
 Use version `99.0.0` in the provider to test your changes locally
