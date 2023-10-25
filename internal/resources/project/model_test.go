@@ -1,14 +1,15 @@
 package project
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/labd/terraform-provider-commercetools/internal/customtypes"
+	"github.com/labd/terraform-provider-commercetools/internal/utils"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/labd/commercetools-go-sdk/platform"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/labd/terraform-provider-commercetools/internal/customtypes"
 	"github.com/labd/terraform-provider-commercetools/internal/models"
 )
 
@@ -118,6 +119,59 @@ func TestUpdateActions(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+		},
+		{
+			name: "Carts Configuration",
+			state: Project{
+				Version: types.Int64Value(1),
+				Carts: []Carts{
+					{
+						CountryTaxRateFallbackEnabled:   types.BoolValue(true),
+						DeleteDaysAfterLastModification: types.Int64Value(10),
+					},
+				},
+			},
+			plan: Project{
+				Version: types.Int64Value(1),
+				Carts: []Carts{
+					{
+						CountryTaxRateFallbackEnabled:   types.BoolValue(false),
+						DeleteDaysAfterLastModification: types.Int64Value(90),
+					},
+				},
+			},
+			action: platform.ProjectUpdate{
+				Version: 1,
+				Actions: []platform.ProjectUpdateAction{
+					platform.ProjectChangeCartsConfigurationAction{
+						CartsConfiguration: platform.CartsConfiguration{
+							CountryTaxRateFallbackEnabled:   utils.BoolRef(false),
+							DeleteDaysAfterLastModification: utils.IntRef(90),
+						},
+					},
+					platform.ProjectChangeCountryTaxRateFallbackEnabledAction{CountryTaxRateFallbackEnabled: false},
+				},
+			},
+		},
+		{
+			name: "Create with bool unknown",
+			state: Project{
+				Version:                   types.Int64Value(1),
+				EnableSearchIndexOrders:   types.BoolValue(false),
+				EnableSearchIndexProducts: types.BoolValue(false),
+			},
+			plan: Project{
+				Version: types.Int64Value(1),
+
+				EnableSearchIndexOrders:   types.BoolValue(true),
+				EnableSearchIndexProducts: types.BoolUnknown(),
+			},
+			action: platform.ProjectUpdate{
+				Version: 1,
+				Actions: []platform.ProjectUpdateAction{
+					platform.ProjectChangeOrderSearchStatusAction{Status: platform.OrderSearchStatusActivated},
 				},
 			},
 		},

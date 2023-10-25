@@ -53,11 +53,11 @@ resource "commercetools_type" "my-custom-type" {
       name = "Enum"
       value {
         key   = "day"
-        value = "Daytime"
+        label = "Daytime"
       }
       value {
         key   = "evening"
-        value = "Evening"
+        label = "Evening"
       }
     }
   }
@@ -151,7 +151,7 @@ Optional:
 
 - `element_type` (Block List, Max: 1) (see [below for nested schema](#nestedblock--field--type--element_type))
 - `localized_value` (Block List) Localized values for the `lenum` type. (see [below for nested schema](#nestedblock--field--type--localized_value))
-- `reference_type_id` (String) Resource type the Custom Field can reference. Required when type is `reference`
+- `reference_type_id` (String) Resource type the Custom Field can reference. Required when type is `Reference`
 - `value` (Block List) Values for the `enum` type. (see [below for nested schema](#nestedblock--field--type--value))
 
 <a id="nestedblock--field--type--element_type"></a>
@@ -164,11 +164,11 @@ Required:
 Optional:
 
 - `localized_value` (Block List) Localized values for the `lenum` type. (see [below for nested schema](#nestedblock--field--type--element_type--localized_value))
-- `reference_type_id` (String) Resource type the Custom Field can reference. Required when type is `reference`
+- `reference_type_id` (String) Resource type the Custom Field can reference. Required when type is `Reference`
 - `value` (Block List) Values for the `enum` type. (see [below for nested schema](#nestedblock--field--type--element_type--value))
 
 <a id="nestedblock--field--type--element_type--localized_value"></a>
-### Nested Schema for `field.type.element_type.value`
+### Nested Schema for `field.type.element_type.localized_value`
 
 Required:
 
@@ -202,5 +202,3 @@ Required:
 
 - `key` (String)
 - `label` (String)
-
-
